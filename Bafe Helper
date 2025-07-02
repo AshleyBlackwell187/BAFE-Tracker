@@ -10,18 +10,20 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
-            --secom-red: #E60000;
-            --secom-navy: #1A213D;
-            --secom-light-gray: #f8fafc;
+            --secom-red: #E60000; /* Retained for critical alerts, outstanding items */
+            --secom-blue: #004A99; /* Assumed SECOM Primary Blue */
+            --secom-navy: #1A213D; /* Retained for dark text, backgrounds */
+            --secom-light-gray: #f8fafc; /* Retained for page background */
             --status-completed: #22c55e; /* green-500 */
-            --status-outstanding: #E60000; /* Changed to SECOM Red */
-            --status-in-progress: #f59e0b; /* amber-500 */
-            --status-not-started: #ef4444; /* red-500 */
-            --status-na: #64748b; /* slate-500 */
+            --status-outstanding: var(--secom-red); /* Uses SECOM Red */
+            --status-in-progress: #f59e0b; /* amber-500 - will be less prominent after status consolidation */
+            --status-not-started: #ef4444; /* red-500 - will be less prominent after status consolidation */
         }
         body {
             font-family: 'Inter', sans-serif;
-            background-color: var(--secom-light-gray);
+            /* background-color: var(--secom-light-gray); */
+            background: linear-gradient(to bottom, #f8fafc, #f1f5f9);
+            min-height: 100vh; /* Ensure gradient covers full viewport height */
         }
         /* Main page header */
         .page-header h1 {
@@ -32,20 +34,24 @@
             gap: 0.5rem;
         }
         .secom-brand-text {
-            color: var(--secom-red);
+            color: var(--secom-blue); /* Changed to SECOM Blue */
             font-weight: 700;
         }
         /* Chart Container */
         .chart-container {
-            max-width: 300px;
+            max-width: 600px; /* Increased width for horizontal bar chart */
+            height: 250px;    /* Explicit height for two bars */
             margin: 0 auto;
         }
         /* Table styles */
         th, td {
             border-bottom: 1px solid #e2e8f0; /* slate-200 */
-            padding: 1rem 1.25rem;
+            padding: 0.75rem 1rem; /* Reduced padding */
             text-align: left;
             vertical-align: middle;
+        }
+        tbody tr:nth-child(even) {
+            background-color: #f9fafb; /* Tailwind gray-50 for zebra striping */
         }
         /* Table header */
         thead th {
@@ -55,13 +61,20 @@
             position: sticky;
             top: 0;
             z-index: 10;
-            border-bottom: 2px solid var(--secom-red);
+            border-bottom: 2px solid var(--secom-blue); /* Changed to SECOM Blue */
         }
+        /* Column width styling */
+        .col-no, #spreadsheet tbody tr > *:nth-child(1) { width: 5%; }
+        .col-name, #spreadsheet tbody tr > *:nth-child(2) { width: 30%; word-break: break-word; }
+        .col-status, #spreadsheet tbody tr > *:nth-child(3) { width: auto; min-width: 170px; /* Adjusted for dropdown visibility */ }
+        .col-link, #spreadsheet tbody tr > *:nth-child(4) { width: 25%; word-break: break-word; }
+        .col-notes, #spreadsheet tbody tr > *:nth-child(5) { width: 25%; word-break: break-word; }
+
         tbody tr:hover {
             background-color: #f1f5f9; /* slate-100 */
         }
         /* Row number header */
-        th.row-header {
+        th.row-header { /* This is for the first cell in a body row if it's a TH */
             background-color: #f8fafc; /* slate-50 */
             color: var(--secom-navy);
             font-weight: 600;
@@ -153,10 +166,21 @@
         </div>
 
         <!-- Controls are now at the bottom -->
-        <div class="flex justify-center space-x-4 mt-8">
-            <button id="addRow" class="secom-button">
-                Add Custom Item
-            </button>
+        <div class="flex flex-col items-center space-y-4 mt-8">
+            <div class="flex space-x-4">
+                <button id="addRow" class="secom-button">
+                    Add Custom Item
+                </button>
+                <button id="exportData" class="secom-button">
+                    Export Data
+                </button>
+                <label for="importDataInput" class="secom-button cursor-pointer">
+                    Import Data
+                </label>
+                <input type="file" id="importDataInput" class="hidden" accept=".json">
+            </div>
+            <div id="lastSaved" class="text-sm text-slate-500"></div>
+            <div id="importStatus" class="text-sm text-slate-500"></div>
         </div>
     </div>
 
@@ -164,6 +188,9 @@
         const tableHeader = document.getElementById('tableHeader');
         const tableBody = document.getElementById('tableBody');
         const addRowBtn = document.getElementById('addRow');
+        const exportDataBtn = document.getElementById('exportData');
+        const importDataInput = document.getElementById('importDataInput');
+        const importStatusDiv = document.getElementById('importStatus');
         const chartCanvas = document.getElementById('complianceChart');
         let complianceChart;
 
@@ -189,12 +216,15 @@
             const statuses = {
                 'Completed': 0,
                 'In Progress': 0,
-                'Not Started': 0,
-                'N/A': 0
+                'Not Started': 0
+                // 'N/A' category removed
             };
             const selects = tableBody.querySelectorAll('.status-select');
             selects.forEach(select => {
-                statuses[select.value]++;
+                // Make sure to only count valid, expected statuses
+                if (statuses.hasOwnProperty(select.value)) {
+                    statuses[select.value]++;
+                }
             });
 
             const completed = statuses['Completed'];
@@ -202,13 +232,20 @@
             const total = completed + outstanding;
             
             // Update chart data
-            complianceChart.data.datasets[0].data = [completed, outstanding];
+            // Ensure complianceChart is initialized before accessing its properties
+            if (complianceChart) {
+                complianceChart.data.datasets[0].data = [completed, outstanding];
             
-            // Update chart text
-            const percentage = total > 0 ? ((completed / total) * 100).toFixed(1) : 0;
-            complianceChart.options.plugins.title.text = `${percentage}% Complete`;
-
-            complianceChart.update();
+                // Update chart text
+                const percentage = total > 0 ? ((completed / total) * 100).toFixed(1) : 0;
+                // Ensure options and plugins are structured as expected by Chart.js version
+                if (complianceChart.options && complianceChart.options.plugins && complianceChart.options.plugins.title) {
+                    complianceChart.options.plugins.title.text = `${percentage}% Complete`;
+                } else if (complianceChart.options && complianceChart.options.title) { // Older Chart.js versions might have title directly under options
+                    complianceChart.options.title.text = `${percentage}% Complete`;
+                }
+                complianceChart.update();
+            }
         }
 
         /**
@@ -217,31 +254,45 @@
         function initChart() {
             const ctx = chartCanvas.getContext('2d');
             complianceChart = new Chart(ctx, {
-                type: 'doughnut',
+                type: 'bar', // Changed from 'doughnut'
                 data: {
-                    labels: ['Completed', 'Outstanding'],
+                    labels: ['Completed', 'Outstanding'], // Categories for the y-axis
                     datasets: [{
-                        data: [0, 0], // Initial data
+                        label: 'Compliance Status', // This label might not be very visible depending on options
+                        data: [0, 0], // Initial data for Completed, Outstanding
                         backgroundColor: [
-                            'var(--status-completed)',
-                            'var(--status-outstanding)'
+                            '#22c55e', // Direct green for Completed
+                            '#E60000'  // Direct red for Outstanding
                         ],
                         borderColor: [
-                            'var(--status-completed)',
-                            'var(--status-outstanding)'
+                            '#22c55e',
+                            '#E60000'
                         ],
                         borderWidth: 1
                     }]
                 },
                 options: {
+                    indexAxis: 'y', // Makes it a horizontal bar chart
                     responsive: true,
-                    maintainAspectRatio: true,
-                    cutout: '70%',
+                    maintainAspectRatio: false, // Allow chart to flexibly size in container
+                    scales: {
+                        x: { // Configuration for the X axis (values)
+                            beginAtZero: true,
+                            ticks: {
+                                precision: 0 // Ensure only whole numbers if counts are always integers
+                            }
+                        },
+                        y: { // Configuration for the Y axis (labels: 'Completed', 'Outstanding')
+                            grid: {
+                                display: false // Hide grid lines for y-axis for cleaner look
+                            }
+                        }
+                    },
                     plugins: {
                         legend: {
-                            position: 'bottom',
+                            display: false // Legend is not very useful for just two bars with clear labels
                         },
-                        title: {
+                        title: { // Existing title for percentage - will keep for now
                             display: true,
                             text: '0% Complete',
                             position: 'top',
@@ -270,7 +321,7 @@
             dot.className = 'status-dot';
             const select = document.createElement('select');
             select.className = 'status-select';
-            const statuses = ['Not Started', 'In Progress', 'Completed', 'N/A'];
+            const statuses = ['Not Started', 'In Progress', 'Completed']; // 'N/A' removed
             statuses.forEach(status => {
                 const option = document.createElement('option');
                 option.value = status;
@@ -292,32 +343,85 @@
         }
         
         function autolink(cell) {
-            const text = cell.textContent.trim();
-            const urlRegex = /^(https?:\/\/[^\s]+)/;
-            const match = text.match(urlRegex);
-            if (match && cell.querySelectorAll('a').length === 0) {
-                const url = match[0];
-                cell.innerHTML = '';
-                const link = document.createElement('a');
-                link.href = url;
-                link.textContent = url;
-                link.target = '_blank';
-                link.rel = 'noopener noreferrer';
-                link.className = 'text-blue-600 hover:text-blue-800 hover:underline';
-                cell.appendChild(link);
+            const currentText = cell.textContent.trim();
+            const existingLink = cell.querySelector('a');
+            const urlRegex = /^(https?:\/\/[\w.-]+(?:\.[\w\.-]+)+[\w\-\._~:/?#[\]@!\$&'\(\)\*\+,;=.]+)/; // More robust regex
+            const match = currentText.match(urlRegex);
+
+            if (match) {
+                // Valid URL found in the current text
+                const newUrl = match[0];
+                if (existingLink) {
+                    if (existingLink.href !== newUrl) {
+                        // Existing link is different, update it
+                        existingLink.href = newUrl;
+                        existingLink.textContent = newUrl; // Update text if it was different
+                    }
+                    // If href is the same, do nothing, link is up-to-date.
+                    // Ensure click listener is attached if not already (or re-attach if elements are recreated)
+                    // For simplicity here, we assume if link exists, listener was attached.
+                    // A more robust way would be to check for a flag or always remove/re-add listener
+                } else {
+                    // No existing link, create a new one
+                    cell.innerHTML = ''; // Clear cell before adding new link
+                    const link = document.createElement('a');
+                    link.href = newUrl;
+                    link.textContent = newUrl;
+                    link.target = '_blank';
+                    link.rel = 'noopener noreferrer';
+                    link.style.color = 'var(--secom-blue)';
+                    link.style.textDecoration = 'underline';
+
+                    // Explicit click handling to ensure navigation
+                    link.addEventListener('click', (e) => {
+                        e.preventDefault(); // Stop any default behavior (especially if contenteditable interferes)
+                        e.stopPropagation(); // Stop event bubbling
+                        window.open(link.href, '_blank'); // Explicitly open in new tab
+                    });
+                    cell.appendChild(link);
+                }
+            } else {
+                // No valid URL found in the current text
+                if (existingLink) {
+                    // If there was a link but text is no longer a URL, revert cell to plain text
+                    cell.innerHTML = currentText; // Use currentText which is not a URL
+                }
+                // If no match and no existing link, do nothing.
             }
         }
 
-        function generateSheet() {
-            const headers = ['No.', 'Name', 'Status', 'Link/Reference', 'Notes'];
+        function generateTableHeaders() {
+            // Clear any existing headers first to prevent duplication if called multiple times
+            while (tableHeader.firstChild) {
+                tableHeader.removeChild(tableHeader.firstChild);
+            }
+            const headers = [
+                { text: 'No.', class: 'col-no' },
+                { text: 'Name', class: 'col-name' },
+                { text: 'Status', class: 'col-status' },
+                { text: 'Link/Reference', class: 'col-link' },
+                { text: 'Notes', class: 'col-notes' }
+            ];
             const headerRow = document.createElement('tr');
-            headers.forEach(headerText => {
+            headers.forEach(headerInfo => {
                 const th = document.createElement('th');
-                th.textContent = headerText;
+                th.textContent = headerInfo.text;
+                th.classList.add(headerInfo.class);
                 headerRow.appendChild(th);
             });
             tableHeader.appendChild(headerRow);
+        }
+
+        function generateSheet() { // Now only generates the initial body rows from templateItems
+            // Ensure table body is clear before generating template items
+            // This might be redundant if loadDataFromLocalStorage also clears it, but good for standalone use.
+            while (tableBody.firstChild) {
+                tableBody.removeChild(tableBody.firstChild);
+            }
+            rowCount = 0; // Reset rowCount when generating default sheet body
+
             templateItems.forEach((itemText, index) => {
+                rowCount++; // Use the global rowCount
                 const tr = document.createElement('tr');
                 const th = document.createElement('th');
                 th.textContent = index + 1;
@@ -355,20 +459,254 @@
             updateComplianceData(); // Update chart when a new row is added
         }
 
+        const STORAGE_KEY = 'secomComplianceData';
+
+        function saveDataToLocalStorage() {
+            const dataToSave = {
+                rows: []
+            };
+            const tableRows = tableBody.querySelectorAll('tr');
+            tableRows.forEach(tr => {
+                const rowNum = tr.cells[0].textContent;
+                const name = tr.cells[1].textContent; // For template items, or editable for custom
+                const statusSelect = tr.cells[2].querySelector('.status-select');
+                const status = statusSelect ? statusSelect.value : 'Not Started';
+                const linkContent = tr.cells[3].innerHTML; // Save full HTML to preserve link
+                const notesContent = tr.cells[4].textContent;
+                const isCustom = !templateItems.includes(name) && parseInt(rowNum) > templateItems.length;
+
+
+                dataToSave.rows.push({
+                    rowNum, // Keep original row number for matching, might not be strictly needed if we regenerate all
+                    name: tr.cells[1].getAttribute('contenteditable') === 'true' ? name : name, // if name is editable, save it
+                    isCustomNameEditable: tr.cells[1].getAttribute('contenteditable') === 'true',
+                    originalTemplateName: isCustom ? null : name, // Store original name for template items
+                    status,
+                    linkHTML: linkContent, // Store HTML to keep the link if present
+                    notes: notesContent,
+                    isCustomItem: isCustom
+                });
+            });
+
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
+
+            const lastSavedDiv = document.getElementById('lastSaved');
+            if (lastSavedDiv) {
+                lastSavedDiv.textContent = `Last saved: ${new Date().toLocaleTimeString()}`;
+            }
+        }
+
+        function loadDataFromLocalStorage() {
+            const savedData = localStorage.getItem(STORAGE_KEY);
+            if (!savedData) {
+                generateSheet(); // Generate default sheet if no saved data
+                updateComplianceData();
+                return;
+            }
+
+            let parsedData;
+            try {
+                parsedData = JSON.parse(savedData);
+                if (!parsedData || !parsedData.rows) { // Basic validation
+                    throw new Error("Invalid or missing data structure in LocalStorage.");
+                }
+            } catch (error) {
+                console.error("Error loading data from LocalStorage:", error);
+                localStorage.removeItem(STORAGE_KEY); // Clear corrupted data
+                generateSheet(); // Generate default sheet
+                updateComplianceData();
+                const lastSavedDiv = document.getElementById('lastSaved');
+                if (lastSavedDiv) {
+                    lastSavedDiv.textContent = 'Previous data was corrupted; loaded default sheet.';
+                }
+                return;
+            }
+
+            // Clear existing rows from tableBody if any (e.g. if generateSheet was called before)
+            // but preserve templateItems for row generation logic
+            while (tableBody.firstChild) {
+                tableBody.removeChild(tableBody.firstChild);
+            }
+            rowCount = 0; // Reset global rowCount
+
+            parsedData.rows.forEach(rowData => {
+                rowCount++; // Increment global row counter
+                const tr = document.createElement('tr');
+
+                const th = document.createElement('th');
+                th.textContent = rowCount; // Use sequential row count for display
+                th.scope = 'row';
+                th.classList.add('row-header');
+                tr.appendChild(th);
+
+                const nameCell = createEditableCell(rowData.name); // Name is always editable for custom, or fixed for template
+                if(rowData.isCustomItem || rowData.isCustomNameEditable) {
+                    nameCell.textContent = rowData.name;
+                } else {
+                    nameCell.textContent = rowData.originalTemplateName || rowData.name; // Fallback to saved name if original is missing
+                    nameCell.setAttribute('contenteditable', 'false');
+                }
+                tr.appendChild(nameCell);
+
+                const statusCell = createStatusCell();
+                const select = statusCell.querySelector('.status-select');
+                if (select) {
+                    select.value = rowData.status;
+                    // updateStatusIndicator(select) will be called implicitly by createStatusCell's initial call,
+                    // but good to call explicitly after setting value to ensure dot color.
+                    // However, createStatusCell already calls it.
+                }
+                tr.appendChild(statusCell); // This will also update its dot color
+
+                const linkCell = createEditableCell('e.g., https://...');
+                linkCell.classList.add('link-cell');
+                linkCell.innerHTML = rowData.linkHTML; // Restore HTML, includes link if present
+                // autolink(linkCell); // No need if HTML is restored, but good if only text was saved.
+                tr.appendChild(linkCell);
+
+                const notesCell = createEditableCell('Add notes here...');
+                notesCell.textContent = rowData.notes;
+                tr.appendChild(notesCell);
+
+                tableBody.appendChild(tr);
+                // Manually trigger updateStatusIndicator for rows loaded from storage
+                // to ensure dot color and chart update contribution
+                if (select) updateStatusIndicator(select);
+
+            });
+             // If no rows were in saved data, but there should be template items.
+            if (parsedData.rows.length === 0 && templateItems.length > 0) {
+                generateSheet(); // Fallback to generating default sheet
+            }
+
+
+            updateComplianceData(); // Update chart after loading all data
+            const lastSavedDiv = document.getElementById('lastSaved');
+            if (lastSavedDiv) {
+                lastSavedDiv.textContent = `Data loaded from previous session.`;
+            }
+        }
+
+        function addAndSaveRow() { // Wrapper for addRow to include saving
+            addRow();
+            saveDataToLocalStorage();
+        }
+
         // --- Event Listeners ---
-        addRowBtn.addEventListener('click', addRow);
+        addRowBtn.addEventListener('click', addAndSaveRow); // Changed to wrapper
         
         tableBody.addEventListener('blur', (event) => {
             if (event.target && event.target.matches('.link-cell')) {
-                autolink(event.target);
+                autolink(event.target); // This handles link creation
             }
-        }, true);
+            if (event.target && (event.target.matches('[contenteditable="true"]') || event.target.matches('.status-select'))) {
+                 // Also save on status change, which is handled by updateStatusIndicator calling updateComplianceData
+                 // For direct edits, save on blur.
+                saveDataToLocalStorage();
+            }
+        }, true); // Use capture phase to ensure it runs
+
+        // Update save trigger in updateStatusIndicator
+        function updateStatusIndicator(selectElement) {
+            const dot = selectElement.parentElement.querySelector('.status-dot');
+            const status = selectElement.value.toLowerCase().replace(/ /g, '-');
+            dot.style.backgroundColor = `var(--status-${status})`;
+            updateComplianceData();
+            saveDataToLocalStorage(); // Save data when status changes
+        }
+
+        function exportDataToFile() {
+            saveDataToLocalStorage(); // Ensure current data is saved before export
+            const dataStr = localStorage.getItem(STORAGE_KEY);
+            if (!dataStr) {
+                alert('No data to export.');
+                return;
+            }
+            const dataBlob = new Blob([dataStr], {type: 'application/json'});
+            const url = URL.createObjectURL(dataBlob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'secom_compliance_data.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            importStatusDiv.textContent = 'Data exported successfully.';
+        }
+
+        function importDataFromFile(event) {
+            const file = event.target.files[0];
+            if (!file) {
+                importStatusDiv.textContent = 'No file selected.';
+                return;
+            }
+            if (file.type !== "application/json") {
+                importStatusDiv.textContent = 'Error: Please select a valid JSON file.';
+                alert('Error: Please select a valid JSON file.');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedDataString = e.target.result;
+                    // Validate if it's the correct structure by trying to parse and check a property
+                    const parsed = JSON.parse(importedDataString);
+                    if (!parsed.rows) {
+                        throw new Error("Invalid data structure in JSON file.");
+                    }
+
+                    localStorage.setItem(STORAGE_KEY, importedDataString); // Save imported data to local storage
+                    loadDataFromLocalStorage(); // Reload table and chart from the new local storage data
+                    importStatusDiv.textContent = 'Data imported successfully!';
+                } catch (error) {
+                    importStatusDiv.textContent = `Error importing data: ${error.message}`;
+                    alert(`Error importing data: ${error.message}`);
+                } finally {
+                    // Reset file input to allow importing the same file again if needed
+                    importDataInput.value = '';
+                }
+            };
+            reader.onerror = function() {
+                importStatusDiv.textContent = 'Error reading file.';
+                alert('Error reading file.');
+                importDataInput.value = ''; // Reset file input
+            };
+            reader.readAsText(file);
+        }
+
+        // --- Event Listeners ---
+        addRowBtn.addEventListener('click', addAndSaveRow); // Changed to wrapper
+        exportDataBtn.addEventListener('click', exportDataToFile);
+        importDataInput.addEventListener('change', importDataFromFile);
+
+        tableBody.addEventListener('blur', (event) => {
+            if (event.target && event.target.matches('.link-cell')) {
+                autolink(event.target); // This handles link creation
+            }
+            if (event.target && (event.target.matches('[contenteditable="true"]') || event.target.matches('.status-select'))) {
+                 // Also save on status change, which is handled by updateStatusIndicator calling updateComplianceData
+                 // For direct edits, save on blur.
+                saveDataToLocalStorage();
+            }
+        }, true); // Use capture phase to ensure it runs
+
+        // Update save trigger in updateStatusIndicator
+        function updateStatusIndicator(selectElement) {
+            const dot = selectElement.parentElement.querySelector('.status-dot');
+            const status = selectElement.value.toLowerCase().replace(/ /g, '-');
+            dot.style.backgroundColor = `var(--status-${status})`;
+            updateComplianceData();
+            saveDataToLocalStorage(); // Save data when status changes
+        }
+
 
         // --- Initial Load ---
         document.addEventListener('DOMContentLoaded', () => {
             initChart();
-            generateSheet();
-            updateComplianceData(); // Initial calculation
+            generateTableHeaders(); // Ensure headers are always generated
+            loadDataFromLocalStorage(); // Load saved data or generate new sheet body
+            // updateComplianceData(); // updateComplianceData is called by loadDataFromLocalStorage or generateSheet
         });
     </script>
 </body>
