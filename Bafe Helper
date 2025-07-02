@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BAFE SP203-1 Template - SECOM</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chart.js library for the infographic -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --secom-red: #E60000;
+            --secom-navy: #1A213D;
+            --secom-light-gray: #f8fafc;
+            --status-completed: #22c55e; /* green-500 */
+            --status-outstanding: #E60000; /* Changed to SECOM Red */
+            --status-in-progress: #f59e0b; /* amber-500 */
+            --status-not-started: #ef4444; /* red-500 */
+            --status-na: #64748b; /* slate-500 */
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--secom-light-gray);
+        }
+        /* Main page header */
+        .page-header h1 {
+            color: var(--secom-navy);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+        .secom-brand-text {
+            color: var(--secom-red);
+            font-weight: 700;
+        }
+        /* Chart Container */
+        .chart-container {
+            max-width: 300px;
+            margin: 0 auto;
+        }
+        /* Table styles */
+        th, td {
+            border-bottom: 1px solid #e2e8f0; /* slate-200 */
+            padding: 1rem 1.25rem;
+            text-align: left;
+            vertical-align: middle;
+        }
+        /* Table header */
+        thead th {
+            background-color: var(--secom-navy);
+            color: white;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            border-bottom: 2px solid var(--secom-red);
+        }
+        tbody tr:hover {
+            background-color: #f1f5f9; /* slate-100 */
+        }
+        /* Row number header */
+        th.row-header {
+            background-color: #f8fafc; /* slate-50 */
+            color: var(--secom-navy);
+            font-weight: 600;
+        }
+        td[contenteditable="true"] {
+            cursor: cell;
+        }
+        td[contenteditable="true"]:focus {
+            outline: 2px solid var(--secom-red);
+            box-shadow: 0 0 0 2px var(--secom-red);
+            z-index: 15;
+            position: relative;
+            background-color: white;
+        }
+        /* Status Indicator Styles */
+        .status-cell {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .status-select {
+            width: 100%;
+            padding: 0.5rem;
+            border-radius: 0.375rem;
+            border: 1px solid #cbd5e1; /* slate-300 */
+            background-color: transparent;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
+            background-position: right 0.5rem center;
+            background-repeat: no-repeat;
+            background-size: 1.5em 1.5em;
+        }
+        .status-select:focus {
+            outline: none;
+            border-color: var(--secom-red);
+        }
+        /* Custom Button Style */
+        .secom-button {
+            background-color: var(--secom-red);
+            color: white;
+            font-weight: 600;
+            border-radius: 0.5rem;
+            padding: 0.75rem 1.75rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            transition: all 0.2s ease-in-out;
+        }
+        .secom-button:hover {
+            background-color: #c30000; /* Darker red */
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -2px rgb(0 0 0 / 0.1);
+        }
+    </style>
+</head>
+<body class="text-slate-800">
+    <div class="container mx-auto p-4 sm:p-6 lg:p-8">
+        <div class="mb-8 text-center page-header">
+            <h1 class="text-4xl font-bold">
+                <span class="secom-brand-text">SECOM</span> BAFE SP203-1 Template
+            </h1>
+            <p class="mt-3 text-slate-600">Track your compliance status for each requirement.</p>
+        </div>
+
+        <!-- Compliance Infographic Section -->
+        <div class="mb-10 p-6 bg-white rounded-lg shadow-md border border-slate-200">
+            <h2 class="text-2xl font-bold text-center text-secom-navy mb-4">Compliance Overview</h2>
+            <div class="chart-container">
+                <canvas id="complianceChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Spreadsheet container -->
+        <div class="overflow-auto border border-slate-200 rounded-lg shadow-md bg-white">
+            <table id="spreadsheet" class="w-full border-collapse">
+                <thead id="tableHeader">
+                    <!-- Header row will be generated by JavaScript -->
+                </thead>
+                <tbody id="tableBody">
+                    <!-- Table body will be generated by JavaScript -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Controls are now at the bottom -->
+        <div class="flex justify-center space-x-4 mt-8">
+            <button id="addRow" class="secom-button">
+                Add Custom Item
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const tableHeader = document.getElementById('tableHeader');
+        const tableBody = document.getElementById('tableBody');
+        const addRowBtn = document.getElementById('addRow');
+        const chartCanvas = document.getElementById('complianceChart');
+        let complianceChart;
+
+        const templateItems = [
+            "Insurance Cover", "Premises & Safeguards for Security", "Resources", "Register of ID Cards",
+            "Sample ID Cards", "Logos & Marks", "Customer Contracts including Terms & Conditions",
+            "Management Procedures", "Corrective Action", "Complaints", "Defects",
+            "Approved Sub-Contractors or Contracted In-Staff", "Management Structure",
+            "Responsibilities of Key Members of Staff", "Calibration Register", "Calibration Certificates",
+            "Standards & Publications", "Competency & Training",
+            "Internal Audits & Policies such as Appraisals to determine competency of pers...",
+            "Access to Standards & Publications", "Management System Review", "Design", "Installation",
+            "Commissioning-Handover-Verification", "Preventative Maintenance", "Corrective Maintenance",
+            "False Alarm Management"
+        ];
+
+        let rowCount = templateItems.length;
+
+        /**
+         * Calculates the number of items for each status and updates the chart.
+         */
+        function updateComplianceData() {
+            const statuses = {
+                'Completed': 0,
+                'In Progress': 0,
+                'Not Started': 0,
+                'N/A': 0
+            };
+            const selects = tableBody.querySelectorAll('.status-select');
+            selects.forEach(select => {
+                statuses[select.value]++;
+            });
+
+            const completed = statuses['Completed'];
+            const outstanding = statuses['In Progress'] + statuses['Not Started'];
+            const total = completed + outstanding;
+            
+            // Update chart data
+            complianceChart.data.datasets[0].data = [completed, outstanding];
+            
+            // Update chart text
+            const percentage = total > 0 ? ((completed / total) * 100).toFixed(1) : 0;
+            complianceChart.options.plugins.title.text = `${percentage}% Complete`;
+
+            complianceChart.update();
+        }
+
+        /**
+         * Initializes the compliance doughnut chart.
+         */
+        function initChart() {
+            const ctx = chartCanvas.getContext('2d');
+            complianceChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Completed', 'Outstanding'],
+                    datasets: [{
+                        data: [0, 0], // Initial data
+                        backgroundColor: [
+                            'var(--status-completed)',
+                            'var(--status-outstanding)'
+                        ],
+                        borderColor: [
+                            'var(--status-completed)',
+                            'var(--status-outstanding)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    cutout: '70%',
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                        },
+                        title: {
+                            display: true,
+                            text: '0% Complete',
+                            position: 'top',
+                            font: {
+                                size: 18,
+                                weight: 'bold'
+                            },
+                            color: 'var(--secom-navy)'
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateStatusIndicator(selectElement) {
+            const dot = selectElement.parentElement.querySelector('.status-dot');
+            const status = selectElement.value.toLowerCase().replace(/ /g, '-');
+            dot.style.backgroundColor = `var(--status-${status})`;
+            updateComplianceData(); // Update chart whenever a status changes
+        }
+
+        function createStatusCell() {
+            const cell = document.createElement('td');
+            cell.className = 'status-cell';
+            const dot = document.createElement('div');
+            dot.className = 'status-dot';
+            const select = document.createElement('select');
+            select.className = 'status-select';
+            const statuses = ['Not Started', 'In Progress', 'Completed', 'N/A'];
+            statuses.forEach(status => {
+                const option = document.createElement('option');
+                option.value = status;
+                option.textContent = status;
+                select.appendChild(option);
+            });
+            cell.appendChild(dot);
+            cell.appendChild(select);
+            select.addEventListener('change', () => updateStatusIndicator(select));
+            updateStatusIndicator(select); // Set initial color
+            return cell;
+        }
+        
+        function createEditableCell(placeholder = '') {
+            const cell = document.createElement('td');
+            cell.setAttribute('contenteditable', 'true');
+            cell.setAttribute('data-placeholder', placeholder);
+            return cell;
+        }
+        
+        function autolink(cell) {
+            const text = cell.textContent.trim();
+            const urlRegex = /^(https?:\/\/[^\s]+)/;
+            const match = text.match(urlRegex);
+            if (match && cell.querySelectorAll('a').length === 0) {
+                const url = match[0];
+                cell.innerHTML = '';
+                const link = document.createElement('a');
+                link.href = url;
+                link.textContent = url;
+                link.target = '_blank';
+                link.rel = 'noopener noreferrer';
+                link.className = 'text-blue-600 hover:text-blue-800 hover:underline';
+                cell.appendChild(link);
+            }
+        }
+
+        function generateSheet() {
+            const headers = ['No.', 'Name', 'Status', 'Link/Reference', 'Notes'];
+            const headerRow = document.createElement('tr');
+            headers.forEach(headerText => {
+                const th = document.createElement('th');
+                th.textContent = headerText;
+                headerRow.appendChild(th);
+            });
+            tableHeader.appendChild(headerRow);
+            templateItems.forEach((itemText, index) => {
+                const tr = document.createElement('tr');
+                const th = document.createElement('th');
+                th.textContent = index + 1;
+                th.scope = 'row';
+                th.classList.add('row-header');
+                tr.appendChild(th);
+                const nameCell = document.createElement('td');
+                nameCell.textContent = itemText;
+                tr.appendChild(nameCell);
+                tr.appendChild(createStatusCell());
+                const linkCell = createEditableCell('e.g., https://...');
+                linkCell.classList.add('link-cell');
+                tr.appendChild(linkCell);
+                tr.appendChild(createEditableCell('Add notes here...'));
+                tableBody.appendChild(tr);
+            });
+        }
+
+        function addRow() {
+            rowCount++;
+            const newRow = document.createElement('tr');
+            const th = document.createElement('th');
+            th.textContent = rowCount;
+            th.scope = 'row';
+            th.classList.add('row-header');
+            newRow.appendChild(th);
+            newRow.appendChild(createEditableCell('Enter custom item name...'));
+            newRow.appendChild(createStatusCell());
+            const linkCell = createEditableCell('e.g., https://...');
+            linkCell.classList.add('link-cell');
+            newRow.appendChild(linkCell);
+            newRow.appendChild(createEditableCell('Add notes here...'));
+            tableBody.appendChild(newRow);
+            newRow.querySelector('[contenteditable="true"]').focus();
+            updateComplianceData(); // Update chart when a new row is added
+        }
+
+        // --- Event Listeners ---
+        addRowBtn.addEventListener('click', addRow);
+        
+        tableBody.addEventListener('blur', (event) => {
+            if (event.target && event.target.matches('.link-cell')) {
+                autolink(event.target);
+            }
+        }, true);
+
+        // --- Initial Load ---
+        document.addEventListener('DOMContentLoaded', () => {
+            initChart();
+            generateSheet();
+            updateComplianceData(); // Initial calculation
+        });
+    </script>
+</body>
+</html>
