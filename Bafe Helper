@@ -594,7 +594,7 @@
 
         // --- Event Listeners ---
         addRowBtn.addEventListener('click', addAndSaveRow); // Changed to wrapper
-        
+
         tableBody.addEventListener('blur', (event) => {
             if (event.target && event.target.matches('.link-cell')) {
                 autolink(event.target); // This handles link creation
@@ -626,7 +626,17 @@
             const url = URL.createObjectURL(dataBlob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = 'secom_compliance_data.json';
+
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = (now.getMonth() + 1).toString().padStart(2, '0');
+            const day = now.getDate().toString().padStart(2, '0');
+            const hours = now.getHours().toString().padStart(2, '0');
+            const minutes = now.getMinutes().toString().padStart(2, '0');
+            const seconds = now.getSeconds().toString().padStart(2, '0');
+            const timestamp = `${year}${month}${day}_${hours}${minutes}${seconds}`;
+            a.download = `secom_compliance_data_${timestamp}.json`;
+
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
